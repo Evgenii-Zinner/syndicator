@@ -21,6 +21,13 @@ app.get('/', async (c) => {
   ]);
 
   const blueskyConfigured = Boolean(c.env.BLUESKY_IDENTIFIER && c.env.BLUESKY_PASSWORD);
+  const mastodonConfigured = Boolean(c.env.MASTODON_ACCESS_TOKEN);
+  const xConfigured = Boolean(
+    (c.env.X_API_KEY && c.env.X_API_SECRET && c.env.X_ACCESS_TOKEN && c.env.X_ACCESS_SECRET) ||
+      c.env.X_ACCESS_TOKEN
+  );
+  const threadsConfigured = Boolean(c.env.THREADS_ACCESS_TOKEN);
+  const nostrConfigured = Boolean(c.env.NOSTR_PRIVATE_KEY);
 
   return c.json({
     service: 'syndicator',
@@ -31,9 +38,25 @@ app.get('/', async (c) => {
       feedUrl: c.env.RSS_FEED_URL ?? 'not_set',
       shortDomain: c.env.SHORT_DOMAIN || 'not configured',
       cronSchedule: '0 */4 * * * (every 4 hours)',
-      bluesky: {
-        configured: blueskyConfigured,
-        identifier: c.env.BLUESKY_IDENTIFIER ?? null,
+      platforms: {
+        bluesky: {
+          configured: blueskyConfigured,
+          identifier: c.env.BLUESKY_IDENTIFIER ?? null,
+        },
+        mastodon: {
+          configured: mastodonConfigured,
+          instance: c.env.MASTODON_INSTANCE_URL || 'https://mastodon.social',
+        },
+        x: {
+          configured: xConfigured,
+          auth: c.env.X_API_KEY ? 'oauth1' : c.env.X_ACCESS_TOKEN ? 'oauth2' : 'none',
+        },
+        threads: {
+          configured: threadsConfigured,
+        },
+        nostr: {
+          configured: nostrConfigured,
+        },
       },
     },
     state: {
