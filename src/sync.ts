@@ -26,7 +26,7 @@ export async function syncRssFeed(
   env: Bindings,
   options?: { readonly force?: boolean }
 ): Promise<SyncSummary> {
-  const feedUrl = env.RSS_FEED_URL;
+  const feedUrl = env.RSS_FEED_URL?.trim();
   if (!feedUrl) {
     throw new Error("Missing required 'RSS_FEED_URL' environment variable.");
   }

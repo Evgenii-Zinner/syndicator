@@ -8,9 +8,12 @@ import { planSocialThread } from '../utils/thread';
  * Default public Nostr relays used when NOSTR_RELAYS is not explicitly configured.
  */
 export const DEFAULT_NOSTR_RELAYS: readonly string[] = [
+  'wss://relay.nostr.com',
   'wss://relay.damus.io',
   'wss://nos.lol',
-  'wss://relay.nostr.band',
+  'wss://nostr.bitcoiner.social',
+  'wss://nostr.mom',
+  'wss://relay.snort.social',
 ];
 
 /**
@@ -49,23 +52,26 @@ export function resolveNostrRelays(env: Bindings): readonly string[] {
   if (env.NOSTR_RELAYS?.trim()) {
     return env.NOSTR_RELAYS.split(',')
       .map((r) => r.trim())
-      .filter((r) => r.startsWith('wss://') || r.startsWith('ws://'));
+      .filter(Boolean)
+      .map((r) => (r.startsWith('ws://') || r.startsWith('wss://') ? r : `wss://${r}`));
   }
   return DEFAULT_NOSTR_RELAYS;
 }
 
 /**
  * Establishes an outbound WebSocket connection to a Nostr relay.
- * Works seamlessly across both Cloudflare Workers (`fetch` with `Upgrade: websocket`)
+ * Works seamlessly across both Cloudflare Workers (`fetch(wss://...)` with `Upgrade: websocket`)
  * and standard environments (Node / Bun `WebSocket`).
  */
 async function connectToRelay(relayUrl: string, timeoutMs: number): Promise<WebSocket> {
-  const wsUrl = relayUrl.replace(/^http/, 'ws');
-  const httpUrl = wsUrl.replace(/^ws:/, 'http:').replace(/^wss:/, 'https:');
+  let wsUrl = relayUrl.trim();
+  if (!wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://')) {
+    wsUrl = `wss://${wsUrl}`;
+  }
 
   // 1. Cloudflare Workers outbound WebSocket upgrade via fetch
   try {
-    const res = await fetch(httpUrl, {
+    const res = await fetch(wsUrl, {
       headers: { Upgrade: 'websocket' },
     });
     const ws = (res as unknown as { webSocket?: WebSocket }).webSocket;
@@ -124,7 +130,7 @@ async function publishToRelay(
   relayUrl: string,
   event: Record<string, unknown>,
   eventId: string,
-  timeoutMs = 4000
+  timeoutMs = 7000
 ): Promise<RelayPublishResult> {
   let ws: WebSocket | null = null;
 
