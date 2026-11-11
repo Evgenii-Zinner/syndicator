@@ -10,10 +10,34 @@ const app = new Hono<{ Bindings: Bindings }>();
 app.use('*', logger());
 app.use('*', cors());
 
+app.onError((err, c) => {
+  console.error('Worker error:', err);
+  return c.json(
+    {
+      status: 'error',
+      message: err.message || 'Internal Server Error',
+      name: err.name,
+    },
+    500
+  );
+});
+
 /**
  * Health check & instance state endpoint.
  */
 app.get('/', async (c) => {
+  if (!c.env?.KV) {
+    return c.json(
+      {
+        service: 'syndicator',
+        status: 'misconfigured',
+        error:
+          'KV binding "KV" is missing. Please add a KV namespace binding named "KV" in Cloudflare Dashboard (Worker Settings -> Bindings -> KV).',
+      },
+      500
+    );
+  }
+
   const [latestUrl, lastSyncedAt, etag] = await Promise.all([
     c.env.KV.get('rss:latest_url'),
     c.env.KV.get('rss:last_synced_at'),
