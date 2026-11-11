@@ -24,7 +24,7 @@ class MockKVNamespace {
 const BASELINE_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
-    <title>Evgenii Zinner</title>
+    <title>Example Tech Blog</title>
     <link>https://example.com</link>
     <item>
       <title>Article 1</title>
@@ -38,7 +38,7 @@ const BASELINE_XML = `<?xml version="1.0" encoding="UTF-8"?>
 const UPDATED_XML_WITH_TWO_POSTS = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
-    <title>Evgenii Zinner</title>
+    <title>Example Tech Blog</title>
     <link>https://example.com</link>
     <item>
       <title>Article 3</title>

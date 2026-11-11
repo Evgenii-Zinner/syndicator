@@ -1,5 +1,35 @@
 export type { LinkStrategy, PlatformConfig, PlatformId } from './config/platforms';
 
+declare global {
+  interface KVNamespace {
+    get(key: string, options?: { type?: 'text' }): Promise<string | null>;
+    get(key: string, options: { type: 'json' }): Promise<unknown | null>;
+    put(
+      key: string,
+      value: string | ArrayBuffer | ReadableStream,
+      options?: { expirationTtl?: number }
+    ): Promise<void>;
+    delete(key: string): Promise<void>;
+    list(options?: { prefix?: string; limit?: number; cursor?: string }): Promise<{
+      keys: { name: string; expiration?: number; metadata?: unknown }[];
+      list_complete: boolean;
+      cursor?: string;
+    }>;
+  }
+
+  interface ExecutionContext {
+    waitUntil(promise: Promise<unknown>): void;
+    passThroughOnException(): void;
+  }
+
+  interface ScheduledEvent {
+    readonly cron: string;
+    readonly scheduledTime: number;
+    readonly type: string;
+    noRetry(): void;
+  }
+}
+
 /**
  * Supported syndication target platforms.
  */
@@ -22,10 +52,14 @@ export interface Bindings {
   readonly THREADS_USER_ID?: string;
   readonly NOSTR_RELAYS?: string;
 
-  // Secrets (Configured via `wrangler secret put`)
+  // Secrets (Configured via `wrangler secret put` or Cloudflare Dashboard)
   readonly BLUESKY_PASSWORD?: string;
   readonly MASTODON_ACCESS_TOKEN?: string;
+  // X (Twitter) - OAuth 1.0a (recommended, permanent):
+  readonly X_API_KEY?: string;
+  readonly X_API_SECRET?: string;
   readonly X_ACCESS_TOKEN?: string;
+  readonly X_ACCESS_SECRET?: string;
   readonly THREADS_ACCESS_TOKEN?: string;
   readonly NOSTR_PRIVATE_KEY?: string;
   readonly API_SECRET?: string;

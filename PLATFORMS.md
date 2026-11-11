@@ -87,27 +87,33 @@ X uses Twitter API v2 (`POST https://api.twitter.com/2/tweets`). Because outboun
 
 - An approved developer account on the [X Developer Portal](https://developer.x.com).
 - A Project and App with **Read and Write** permissions.
-- An OAuth 2.0 User Access Token or OAuth 1.0a User Access Token with:
-  - `tweet.read`
-  - `tweet.write`
-  - `users.read`
+- **OAuth 1.0a (Recommended):** Generates permanent tokens that never expire. Requires:
+  - Consumer API Key & Secret
+  - User Access Token & Secret
+- Alternatively, OAuth 2.0 User Access Token (`X_ACCESS_TOKEN`).
 
-### How to Get the Access Token
+### How to Get OAuth 1.0a Keys (Permanent, Never Expire)
 
 1. Navigate to the [X Developer Portal Dashboard](https://developer.x.com/en/portal/dashboard).
-2. Create a new **Project** and add an **App** (or select an existing App).
-3. Under the App settings, click **Set up** under **User authentication settings**:
+2. Go to your App settings → **User authentication settings** → click **Edit** (or Set up):
    - **App permissions:** Select **Read and write**.
    - **Type of App:** Select **Web App, Automated App or Bot**.
-   - **App info:** Fill in Callback URI / Redirect URL and Website URL (e.g., `https://example.com`).
-4. Save the settings.
-5. Generate your **OAuth 2.0 User Token** (or User Access Token & Secret under the "Keys and Tokens" tab).
+   - **OAuth 1.0a:** Turn the toggle **ON**.
+   - **App info:** Fill in Callback URI (`https://example.com`) and Website URL (`https://example.com`).
+3. Save settings.
+4. Navigate to the **Keys and Tokens** tab:
+   - Under **Consumer Keys**, click **Generate** (or Regenerate) to get your **API Key** and **API Key Secret**.
+   - Under **Authentication Tokens** → **Access Token and Secret**, click **Generate** to get your **Access Token** and **Access Token Secret** (ensure it says "Created with Read and Write permissions").
+5. Save all 4 values.
 
 ### Worker Configuration
 
 ```bash
-# Store the User Access Token securely in Cloudflare
+# OAuth 1.0a (Recommended - never expires):
+bunx wrangler secret put X_API_KEY
+bunx wrangler secret put X_API_SECRET
 bunx wrangler secret put X_ACCESS_TOKEN
+bunx wrangler secret put X_ACCESS_SECRET
 ```
 
 ---

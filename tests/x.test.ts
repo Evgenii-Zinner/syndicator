@@ -84,6 +84,44 @@ describe('X (Twitter) Platform Syndication', () => {
     }
   });
 
+  it('syndicates using OAuth 1.0a HMAC-SHA1 when all 4 keys are provided', async () => {
+    const oauth1Env: Bindings = {
+      ...dummyEnv,
+      X_API_KEY: 'mock-consumer-key',
+      X_API_SECRET: 'mock-consumer-secret',
+      X_ACCESS_TOKEN: 'mock-access-token',
+      X_ACCESS_SECRET: 'mock-access-secret',
+    };
+
+    const calls: { url: string; headers: Headers; body: Record<string, unknown> }[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === 'string' ? input : input.toString();
+      const headers = new Headers(init?.headers as Record<string, string>);
+      const body = JSON.parse(init?.body as string) as Record<string, unknown>;
+      calls.push({ url, headers, body });
+
+      return new Response(JSON.stringify({ data: { id: '9001', text: body.text } }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as unknown as typeof fetch;
+
+    try {
+      const result = await syndicateToX(payload, oauth1Env);
+      expect(result.status).toBe('posted');
+
+      const authHeader = calls[0]?.headers.get('Authorization') ?? '';
+      expect(authHeader).toStartWith('OAuth ');
+      expect(authHeader).toContain('oauth_consumer_key="mock-consumer-key"');
+      expect(authHeader).toContain('oauth_signature_method="HMAC-SHA1"');
+      expect(authHeader).toContain('oauth_token="mock-access-token"');
+      expect(authHeader).toContain('oauth_signature=');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('returns status failed on API error', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async (): Promise<Response> => {
