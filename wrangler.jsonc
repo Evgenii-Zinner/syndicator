@@ -6,5 +6,10 @@
   "compatibility_flags": ["nodejs_compat"],
   "triggers": {
     "crons": ["0 */4 * * *"]
-  }
+  },
+  "kv_namespaces": [
+    {
+      "binding": "KV"
+    }
+  ]
 }
