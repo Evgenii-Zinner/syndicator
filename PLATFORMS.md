@@ -61,8 +61,9 @@ Mastodon uses standard OAuth Bearer tokens to communicate with the REST API v1 (
 2. Go to **Preferences** (gear icon) → **Development** → **New Application**.
 3. Fill in:
    - **Application name:** `Syndicator`
-   - **Application website:** Your blog URL (e.g., `https://example.com`)
-   - **Scopes:** Check `write:statuses` (you can uncheck `read` and `follow` to keep permissions minimal).
+   - **Application website:** Your website URL (e.g. `https://example.com` or `https://s.example.com`)
+   - **Redirect URI:** Leave default (`urn:ietf:wg:oauth:2.0:oob`)
+   - **Scopes:** Check `write:statuses` only. (Uncheck `read`, `write`, and `follow` to maintain least-privilege security).
 4. Click **Submit**.
 5. Click on the newly created application name.
 6. Copy the **Your access token** string.

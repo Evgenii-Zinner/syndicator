@@ -52,7 +52,10 @@ All configuration is supplied via **Environment Variables** and **Secrets** (set
 | :---------------------- | :---------------------------------------------------------------------- |
 | `BLUESKY_PASSWORD`      | Bluesky App Password (generate in Bluesky Settings → App Passwords)     |
 | `MASTODON_ACCESS_TOKEN` | Mastodon User Access Token (from Preferences → Development → New App)   |
-| `X_ACCESS_TOKEN`        | X / Twitter OAuth 2.0 User Token (with `tweet.write` permission)        |
+| `X_API_KEY`             | **(OAuth 1.0a - Recommended)** X Consumer API Key (permanent)           |
+| `X_API_SECRET`          | **(OAuth 1.0a - Recommended)** X Consumer API Key Secret (permanent)    |
+| `X_ACCESS_TOKEN`        | X Access Token (OAuth 1.0a permanent, or OAuth 2.0 2-hour fallback)     |
+| `X_ACCESS_SECRET`       | **(OAuth 1.0a - Recommended)** X Access Token Secret (permanent)        |
 | `THREADS_ACCESS_TOKEN`  | Meta Threads User Access Token (with `threads_content_publish` scope)   |
 | `NOSTR_PRIVATE_KEY`     | Nostr private key (hex or `nsec1...` format)                            |
 | `API_SECRET`            | _(Optional)_ Bearer token required for triggering `POST /sync` manually |
@@ -100,7 +103,10 @@ bunx wrangler kv namespace create syndicator_kv
 # 2. Bind KV and set secrets
 bunx wrangler secret put BLUESKY_PASSWORD
 bunx wrangler secret put MASTODON_ACCESS_TOKEN
+bunx wrangler secret put X_API_KEY
+bunx wrangler secret put X_API_SECRET
 bunx wrangler secret put X_ACCESS_TOKEN
+bunx wrangler secret put X_ACCESS_SECRET
 bunx wrangler secret put THREADS_ACCESS_TOKEN
 bunx wrangler secret put NOSTR_PRIVATE_KEY
 
@@ -116,7 +122,7 @@ bun run deploy
 # Install dependencies
 bun install
 
-# Run test suite (42 unit tests across 8 suites)
+# Run test suite (43 unit tests across 8 suites)
 bun test
 
 # Typecheck
