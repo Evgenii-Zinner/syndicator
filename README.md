@@ -4,9 +4,9 @@
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com)
 [![Bun](https://img.shields.io/badge/Bun-1.3+-black?logo=bun&logoColor=white)](https://bun.sh)
 [![Biome](https://img.shields.io/badge/Biome-Linter%20%26%20Formatter-60a5fa?logo=biome&logoColor=white)](https://biomejs.dev)
-[![Tests](https://img.shields.io/badge/Tests-48%20Passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-53%20Passing-brightgreen.svg)](tests/)
 
-A lightweight, free, and open-source autonomous distribution engine that polls your RSS feed on a 4-hour schedule (`0 */4 * * *`) and cross-posts new articles across **Bluesky**, **Mastodon**, **Meta Threads**, **Telegram**, **Nostr**, and **X (Twitter)** with intelligent thread planning, algorithmic link routing, and a built-in 3-character URL shortener.
+A lightweight, free, and open-source autonomous distribution engine that polls your RSS feed on a 4-hour schedule (`0 */4 * * *`) and cross-posts new articles across **Bluesky**, **Mastodon**, **Meta Threads**, **Telegram**, **Nostr**, **DEV.to**, and **X (Twitter)** with intelligent thread planning, algorithmic link routing, and a built-in 3-character URL shortener.
 
 Runs entirely within the **Cloudflare Workers Free Tier** ($0/month). No monthly SaaS fees, no servers, and zero relational databases.
 
@@ -33,6 +33,7 @@ _(The KV namespace will be auto-provisioned automatically by Cloudflare during d
 | **Storage**             | Heavy SQL database                       | **Cloudflare KV only** (zero DBs)                                             |
 | **Nostr Support**       | Non-existent                             | **BIP-340 Schnorr signatures & multi-relay WebSockets**                       |
 | **Telegram Support**    | Limited / webhook required               | **Native HTML formatting with rich link previews**                            |
+| **DEV.to Syndication**  | Third-party Zapier / paid RSS import     | **Full HTML article publishing with canonical URL SEO preservation**          |
 
 ---
 
@@ -76,6 +77,7 @@ All settings are configured via **Environment Variables** and **Secrets** in the
 | `BLUESKY_SERVICE`       | _(Optional)_ AT Protocol PDS host (default: `https://bsky.social`)  | `https://bsky.social`                |
 | `MASTODON_INSTANCE_URL` | _(Optional)_ Mastodon instance (default: `https://mastodon.social`) | `https://mastodon.social`            |
 | `TELEGRAM_CHAT_ID`      | _(Optional)_ Telegram Channel/Group username or numeric ID          | `@devlog`                            |
+| `DEVTO_PUBLISHED`       | _(Optional)_ Publish directly (`true`) or import as draft (`false`) | `true`                               |
 | `NOSTR_RELAYS`          | _(Optional)_ Comma-separated WebSocket relay URLs                   | `wss://relay.damus.io,wss://nos.lol` |
 
 ### 2. Secrets (Encrypted)
@@ -87,6 +89,7 @@ Add via Cloudflare Dashboard or `bunx wrangler secret put <NAME>`:
 | `BLUESKY_PASSWORD`      | Bluesky      | App Password from [bsky.app/settings/app-passwords](https://bsky.app/settings/app-passwords) |
 | `MASTODON_ACCESS_TOKEN` | Mastodon     | User Access Token with `write:statuses` scope                                                |
 | `TELEGRAM_BOT_TOKEN`    | Telegram     | Bot API Token generated via [@BotFather](https://t.me/BotFather)                             |
+| `DEVTO_API_KEY`         | DEV.to       | Personal API Key from [dev.to/settings/extensions](https://dev.to/settings/extensions)       |
 | `THREADS_ACCESS_TOKEN`  | Meta Threads | 60-day Long-Lived Token from Meta Developer Portal                                           |
 | `NOSTR_PRIVATE_KEY`     | Nostr        | Private key in `nsec1...` or 64-character hex format                                         |
 | `X_API_KEY`             | X (Twitter)  | Consumer API Key (OAuth 1.0a permanent)                                                      |

@@ -52,6 +52,7 @@ Provide them this exact table:
 | `BLUESKY_SERVICE`       | Optional  | `https://bsky.social`                   | AT Protocol PDS (defaults to bsky.social).      |
 | `MASTODON_INSTANCE_URL` | Optional  | `https://mastodon.social`               | Base URL of your Mastodon instance.             |
 | `TELEGRAM_CHAT_ID`      | Optional  | `@your_channel` or `-100123456789`      | Public `@channel` username or private chat ID.  |
+| `DEVTO_PUBLISHED`       | Optional  | `true` or `false`                       | Whether DEV.to posts are published or drafts.   |
 | `NOSTR_RELAYS`          | Optional  | `wss://relay.damus.io,wss://nos.lol`    | Comma-separated WebSocket relay URLs.           |
 
 ---
@@ -116,6 +117,16 @@ Walk the user through obtaining credentials for each platform they want to enabl
   - Under **Keys and Tokens**, generate **API Key & Secret** (Consumer) and **Access Token & Secret** (User Context).
   - Note: Requires an active X developer credit balance or Free tier project.
 - **Secrets to set:** `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET`
+
+#### 7. DEV.to
+
+- **URL to open:** [https://dev.to/settings/extensions](https://dev.to/settings/extensions)
+- **Action:**
+  - Scroll to **DEV Community API Keys**.
+  - Enter description (e.g. `Syndicator Bot`) and click **Generate API Key**.
+  - Copy the generated API key.
+- **Secret to set:** `DEVTO_API_KEY`
+- **Variable to set (optional):** `DEVTO_PUBLISHED` (`true` for live publishing, `false` for draft mode).
 
 ---
 

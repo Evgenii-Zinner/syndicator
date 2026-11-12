@@ -199,6 +199,16 @@ describe('RSS Sync Engine', () => {
         );
       }
 
+      if (url.includes('dev.to/api/articles')) {
+        return new Response(
+          JSON.stringify({
+            id: 98765,
+            url: 'https://dev.to/example/syndicated-article-98765',
+          }),
+          { status: 201, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
       return originalFetch(input, init);
     }) as unknown as typeof fetch;
 
@@ -311,7 +321,7 @@ describe('RSS Sync Engine', () => {
     currentXml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
-    <title>Evgenii Zinner</title>
+    <title>Example Tech Blog</title>
     <link>https://example.com</link>
     <item>
       <title>Article 2</title>
@@ -354,7 +364,7 @@ describe('RSS Sync Engine', () => {
     currentXml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
-    <title>Evgenii Zinner</title>
+    <title>Example Tech Blog</title>
     <link>https://example.com</link>
     <item>
       <title>Article 2</title>
@@ -400,7 +410,7 @@ describe('RSS Sync Engine', () => {
     currentXml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
-    <title>Evgenii Zinner</title>
+    <title>Example Tech Blog</title>
     <link>https://example.com</link>
     <item>
       <title>Article 2</title>
@@ -475,6 +485,7 @@ describe('RSS Sync Engine', () => {
         NOSTR_RELAYS: 'wss://mock.relay.one',
         TELEGRAM_BOT_TOKEN: 'mock-telegram-token',
         TELEGRAM_CHAT_ID: '@devlog',
+        DEVTO_API_KEY: 'mock-devto-key',
       };
 
       // Baseline run
@@ -514,6 +525,7 @@ describe('RSS Sync Engine', () => {
       expect(kvItem.threads?.url).toBe('https://www.threads.net/t/threads-post-1');
       expect(kvItem.nostr?.url).toContain('https://njump.me/note1');
       expect(kvItem.telegram?.url).toBe('https://t.me/devlog/88');
+      expect(kvItem.devto?.url).toBe('https://dev.to/example/syndicated-article-98765');
     } finally {
       globalThis.WebSocket = originalWebSocket;
     }

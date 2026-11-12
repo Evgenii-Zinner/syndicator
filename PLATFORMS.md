@@ -13,6 +13,8 @@ This guide details the requirements, permissions, and step-by-step procedures fo
 | **X (Twitter)**  | Default Twitter API v2                    | `X_ACCESS_TOKEN`        | 280 weighted chars | Hook in Post 1, link in first reply        |
 | **Meta Threads** | Graph API `graph.threads.net`             | `THREADS_ACCESS_TOKEN`  | 500 characters     | Hook in Post 1, link in first reply        |
 | **Nostr**        | Relays via WebSocket (NIP-01)             | `NOSTR_PRIVATE_KEY`     | 500 graphemes      | Inline in root post + `r` reference tag    |
+| **Telegram**     | Telegram Bot API                          | `TELEGRAM_BOT_TOKEN`    | 4096 characters    | Rich HTML formatting + link preview        |
+| **DEV.to**       | REST API v1 (`dev.to/api/articles`)       | `DEVTO_API_KEY`         | 100,000 characters | Full HTML content + canonical URL for SEO  |
 
 ---
 
@@ -219,6 +221,40 @@ Telegram uses the official Telegram Bot API (`POST https://api.telegram.org/bot<
 
 # Store the Bot Token securely in Cloudflare:
 bunx wrangler secret put TELEGRAM_BOT_TOKEN
+```
+
+---
+
+## 7. DEV.to (Forem)
+
+DEV.to uses the official DEV REST API v1 (`POST https://dev.to/api/articles`). Syndicator extracts the full HTML content from `<content:encoded>` in your RSS feed and publishes it with your article's `canonical_url`—ensuring 100% of the SEO credit stays with your original domain.
+
+### Requirements
+
+- A [DEV.to](https://dev.to) account.
+- A DEV.to Personal API Key.
+
+### How to Get the API Key
+
+1. Log in to [dev.to](https://dev.to).
+2. Go to **Settings** → **Extensions** (or navigate directly to `https://dev.to/settings/extensions`).
+3. Scroll down to the **DEV Community API Keys** section.
+4. Enter a description for your key (e.g. `Syndicator Bot`) and click **Generate API Key**.
+5. Copy the generated key.
+
+### Publishing as Draft vs Published
+
+- By default, `DEVTO_PUBLISHED` is `true` (articles go live immediately).
+- Set `DEVTO_PUBLISHED="false"` in Cloudflare Variables if you prefer posts to be imported as unpublished drafts for manual review.
+
+### Worker Configuration
+
+```bash
+# Optional in Cloudflare Variables:
+# DEVTO_PUBLISHED="true" (or "false" to import as drafts)
+
+# Store the API key securely in Cloudflare:
+bunx wrangler secret put DEVTO_API_KEY
 ```
 
 ---

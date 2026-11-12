@@ -1,4 +1,5 @@
 import { syndicateToBluesky } from './platforms/bluesky';
+import { syndicateToDevto } from './platforms/devto';
 import { syndicateToMastodon } from './platforms/mastodon';
 import { syndicateToNostr } from './platforms/nostr';
 import { syndicateToTelegram } from './platforms/telegram';
@@ -184,6 +185,7 @@ export async function syncRssFeed(
     const threadsDone = Boolean(existingRecord?.threads || !env.THREADS_ACCESS_TOKEN);
     const nostrDone = Boolean(existingRecord?.nostr || !env.NOSTR_PRIVATE_KEY);
     const telegramDone = Boolean(existingRecord?.telegram || !env.TELEGRAM_BOT_TOKEN);
+    const devtoDone = Boolean(existingRecord?.devto || !env.DEVTO_API_KEY);
 
     if (
       existingRecord &&
@@ -193,6 +195,7 @@ export async function syncRssFeed(
       threadsDone &&
       nostrDone &&
       telegramDone &&
+      devtoDone &&
       !options?.force
     ) {
       skippedCount++;
@@ -223,6 +226,7 @@ export async function syncRssFeed(
       shortUrl,
       title: item.title,
       excerpt: item.description,
+      contentHtml: item.contentEncoded,
     };
 
     try {
@@ -276,9 +280,18 @@ export async function syncRssFeed(
         ? {
             status: 'posted',
             remoteId: String(existingRecord.telegram.messageId),
-            url: existingRecord.telegram.url,
+            url: existingRecord.telegram.url ?? '',
           }
         : await syndicateToTelegram(payload, env);
+
+      // Syndicate to DEV.to (if not already posted)
+      const devtoResult: PlatformResult = existingRecord?.devto
+        ? {
+            status: 'posted',
+            remoteId: String(existingRecord.devto.id),
+            url: existingRecord.devto.url,
+          }
+        : await syndicateToDevto(payload, env);
 
       const hasFailures =
         bskyResult.status === 'failed' ||
@@ -286,14 +299,16 @@ export async function syncRssFeed(
         xResult.status === 'failed' ||
         threadsResult.status === 'failed' ||
         nostrResult.status === 'failed' ||
-        telegramResult.status === 'failed';
+        telegramResult.status === 'failed' ||
+        devtoResult.status === 'failed';
       const hasPosts =
         bskyResult.status === 'posted' ||
         mastodonResult.status === 'posted' ||
         xResult.status === 'posted' ||
         threadsResult.status === 'posted' ||
         nostrResult.status === 'posted' ||
-        telegramResult.status === 'posted';
+        telegramResult.status === 'posted' ||
+        devtoResult.status === 'posted';
 
       // Record any successful platforms in KV so retries do not duplicate them
       if (hasPosts) {
@@ -339,6 +354,16 @@ export async function syncRssFeed(
             : existingRecord?.telegram
               ? { telegram: existingRecord.telegram }
               : {}),
+          ...(devtoResult.status === 'posted'
+            ? {
+                devto: {
+                  id: Number.parseInt(devtoResult.remoteId, 10),
+                  url: devtoResult.url,
+                },
+              }
+            : existingRecord?.devto
+              ? { devto: existingRecord.devto }
+              : {}),
         };
 
         await env.KV.put(kvKey, JSON.stringify(kvRecord));
@@ -353,6 +378,7 @@ export async function syncRssFeed(
           threadsResult.status === 'failed' ? `Threads: ${threadsResult.error}` : null,
           nostrResult.status === 'failed' ? `Nostr: ${nostrResult.error}` : null,
           telegramResult.status === 'failed' ? `Telegram: ${telegramResult.error}` : null,
+          devtoResult.status === 'failed' ? `DEV.to: ${devtoResult.error}` : null,
         ]
           .filter(Boolean)
           .join('; ');
@@ -369,6 +395,7 @@ export async function syncRssFeed(
           threadsUrl: threadsResult.status === 'posted' ? threadsResult.url : undefined,
           nostrUrl: nostrResult.status === 'posted' ? nostrResult.url : undefined,
           telegramUrl: telegramResult.status === 'posted' ? telegramResult.url : undefined,
+          devtoUrl: devtoResult.status === 'posted' ? devtoResult.url : undefined,
         });
         // Stop batch on failure to prevent publishing subsequent posts out of chronological order
         break;
@@ -388,6 +415,7 @@ export async function syncRssFeed(
           threadsUrl: threadsResult.status === 'posted' ? threadsResult.url : undefined,
           nostrUrl: nostrResult.status === 'posted' ? nostrResult.url : undefined,
           telegramUrl: telegramResult.status === 'posted' ? telegramResult.url : undefined,
+          devtoUrl: devtoResult.status === 'posted' ? devtoResult.url : undefined,
         });
       } else {
         skippedCount++;
@@ -404,6 +432,7 @@ export async function syncRssFeed(
             threadsResult.status === 'skipped' ? `Threads: ${threadsResult.reason}` : null,
             nostrResult.status === 'skipped' ? `Nostr: ${nostrResult.reason}` : null,
             telegramResult.status === 'skipped' ? `Telegram: ${telegramResult.reason}` : null,
+            devtoResult.status === 'skipped' ? `DEV.to: ${devtoResult.reason}` : null,
           ]
             .filter(Boolean)
             .join('; '),

@@ -1,7 +1,7 @@
 /**
  * Supported platform identifiers.
  */
-export type PlatformId = 'bluesky' | 'x' | 'threads' | 'mastodon' | 'nostr' | 'telegram';
+export type PlatformId = 'bluesky' | 'x' | 'threads' | 'mastodon' | 'nostr' | 'telegram' | 'devto';
 
 /**
  * Strategy for placing the link in social posts.
@@ -71,5 +71,13 @@ export const PLATFORMS: Record<PlatformId, PlatformConfig> = {
     isAlgorithmic: false,
     linkStrategy: 'inline',
     replyPrefix: 'Read the full article:\n\n',
+  },
+  devto: {
+    id: 'devto',
+    name: 'DEV.to',
+    maxGraphemes: 100000,
+    isAlgorithmic: false,
+    linkStrategy: 'inline',
+    replyPrefix: '',
   },
 };

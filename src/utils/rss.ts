@@ -7,18 +7,19 @@ export interface RssFeedItem {
   readonly description?: string;
   readonly pubDate?: string;
   readonly guid?: string;
+  readonly contentEncoded?: string;
 }
 
 /**
  * Strips CDATA markers and decodes basic XML entities.
  */
 function cleanXmlText(text: string): string {
-  let cleaned = text.trim();
+  const cleaned = text.trim();
 
   // Strip CDATA wrappers if present: <![CDATA[...]]>
   const cdataMatch = cleaned.match(/^<!\[CDATA\[([\s\S]*?)\]\]>$/);
   if (cdataMatch?.[1] !== undefined) {
-    cleaned = cdataMatch[1].trim();
+    return cdataMatch[1].trim();
   }
 
   return cleaned
@@ -56,6 +57,8 @@ export function parseRssFeed(xml: string): readonly RssFeedItem[] {
     const description = extractTagContent(itemXml, 'description');
     const pubDate = extractTagContent(itemXml, 'pubDate');
     const guid = extractTagContent(itemXml, 'guid');
+    const contentEncoded =
+      extractTagContent(itemXml, 'content:encoded') ?? extractTagContent(itemXml, 'encoded');
 
     if (title && link) {
       items.push({
@@ -64,6 +67,7 @@ export function parseRssFeed(xml: string): readonly RssFeedItem[] {
         description,
         pubDate,
         guid,
+        contentEncoded,
       });
     }
   }
