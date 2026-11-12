@@ -71,8 +71,10 @@ export async function syndicateToTelegram(
   const targetLink = data.shortUrl || data.canonicalUrl;
   const messageText = formatTelegramMessage(data.title, data.excerpt, targetLink);
 
+  const normalizedChatId = chatId.startsWith('@') || chatId.startsWith('-') ? chatId : `@${chatId}`;
+
   const payload = {
-    chat_id: chatId,
+    chat_id: normalizedChatId,
     text: messageText,
     parse_mode: 'HTML',
     disable_web_page_preview: false,
@@ -109,7 +111,8 @@ export async function syndicateToTelegram(
 
   const messageId = result.result.message_id;
   const channelUsername =
-    result.result.chat?.username || (chatId.startsWith('@') ? chatId.slice(1) : undefined);
+    result.result.chat?.username ||
+    (normalizedChatId.startsWith('@') ? normalizedChatId.slice(1) : undefined);
 
   let messageUrl: string;
   if (channelUsername) {

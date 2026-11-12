@@ -145,11 +145,16 @@ export async function syncRssFeed(
     };
   }
 
-  // 6. Slice only new posts appearing above the saved latest URL
+  // 6. Slice only new posts appearing above the saved latest URL (or include latest item if force is enabled)
   const latestIndex = savedLatestUrl
     ? feedItems.findIndex((item) => item.link === savedLatestUrl)
     : -1;
-  const newItems = latestIndex === -1 ? feedItems : feedItems.slice(0, latestIndex);
+  const newItems =
+    options?.force && latestIndex !== -1
+      ? feedItems.slice(0, Math.max(1, latestIndex))
+      : latestIndex === -1
+        ? feedItems
+        : feedItems.slice(0, latestIndex);
 
   // Process sequentially from oldest to newest to preserve publication order
   const itemsToPost = [...newItems].reverse();
@@ -175,9 +180,10 @@ export async function syncRssFeed(
     // Check if already fully syndicated across all enabled platforms
     const bskyDone = Boolean(existingRecord?.bluesky || !env.BLUESKY_PASSWORD);
     const mastodonDone = Boolean(existingRecord?.mastodon || !env.MASTODON_ACCESS_TOKEN);
-    const xDone = Boolean(existingRecord?.x || !env.X_ACCESS_TOKEN);
+    const xDone = Boolean(existingRecord?.x || (!env.X_ACCESS_TOKEN && !env.X_API_KEY));
     const threadsDone = Boolean(existingRecord?.threads || !env.THREADS_ACCESS_TOKEN);
     const nostrDone = Boolean(existingRecord?.nostr || !env.NOSTR_PRIVATE_KEY);
+    const telegramDone = Boolean(existingRecord?.telegram || !env.TELEGRAM_BOT_TOKEN);
 
     if (
       existingRecord &&
@@ -186,6 +192,7 @@ export async function syncRssFeed(
       xDone &&
       threadsDone &&
       nostrDone &&
+      telegramDone &&
       !options?.force
     ) {
       skippedCount++;
