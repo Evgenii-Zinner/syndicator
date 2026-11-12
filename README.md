@@ -1,66 +1,99 @@
 # Syndicator
 
-A lightweight, open-source Cloudflare Worker that polls an RSS feed on a schedule (`0 */4 * * *`), deduplicates posts using **Cloudflare KV**, generates ultra-short 3-character links (`s.yourdomain.com/:code`), and cross-posts new articles to **Bluesky**, **Mastodon**, **X (Twitter)**, **Meta Threads**, **Nostr**, and **Telegram** with intelligent word-boundary thread splitting.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com)
+[![Bun](https://img.shields.io/badge/Bun-1.3+-black?logo=bun&logoColor=white)](https://bun.sh)
+[![Biome](https://img.shields.io/badge/Biome-Linter%20%26%20Formatter-60a5fa?logo=biome&logoColor=white)](https://biomejs.dev)
+[![Tests](https://img.shields.io/badge/Tests-48%20Passing-brightgreen.svg)](tests/)
+
+A lightweight, free, and open-source autonomous distribution engine that polls your RSS feed on a 4-hour schedule (`0 */4 * * *`) and cross-posts new articles across **Bluesky**, **Mastodon**, **Meta Threads**, **Telegram**, **Nostr**, and **X (Twitter)** with intelligent thread planning, algorithmic link routing, and a built-in 3-character URL shortener.
+
+Runs entirely within the **Cloudflare Workers Free Tier** ($0/month). No monthly SaaS fees, no servers, and zero relational databases.
+
+---
+
+## ⚡ 1-Click Deploy
+
+Deploy directly to your own Cloudflare account with a single click:
+
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Evgenii-Zinner/syndicator)
+
+_(The KV namespace will be auto-provisioned automatically by Cloudflare during deployment)._
+
+---
+
+## Why Syndicator?
+
+| Feature                 | Typical SaaS (Buffer, Hootsuite, Zapier) | Syndicator                                                                    |
+| :---------------------- | :--------------------------------------- | :---------------------------------------------------------------------------- |
+| **Cost**                | $15–$50 / month                          | **$0 / month** (Cloudflare Free Tier)                                         |
+| **Data Privacy**        | Credentials stored on 3rd-party servers  | **100% self-hosted** in your own Cloudflare account                           |
+| **Algorithmic Routing** | Blasts links in root posts (kills reach) | **Places links in replies on X & Threads**, inline on chronological platforms |
+| **Shortener**           | External bit.ly / paid shortener         | **Built-in 3-char Base62 shortener** (`s.yourdomain.com/:code`)               |
+| **Storage**             | Heavy SQL database                       | **Cloudflare KV only** (zero DBs)                                             |
+| **Nostr Support**       | Non-existent                             | **BIP-340 Schnorr signatures & multi-relay WebSockets**                       |
+| **Telegram Support**    | Limited / webhook required               | **Native HTML formatting with rich link previews**                            |
+
+---
 
 ## Key Features
 
-1. **Built-in 3-Character Base62 URL Shortener**:
-   - Automatically generates a clean, deterministic 3-character Base62 code (`[0-9a-zA-Z]`, 238,328 combinations) for each syndicated article when `SHORT_DOMAIN` is configured.
-   - Example: `https://s.yourdomain.com/a9X` -> 301 Permanent Redirect to `https://yourdomain.com/articles/.../`.
-   - Edge-cached with `Cache-Control: public, max-age=86400` for instant redirection.
-   - If `SHORT_DOMAIN` is omitted, the worker simply syndicates the direct canonical article URL.
+1. **Smart Word-Boundary Thread Splitting & Link Strategies**:
+   - Uses `Intl.Segmenter` for accurate Unicode grapheme counting (prevents multi-byte emojis from overflowing character limits).
+   - Never chops words or inserts raw ellipses (`…`).
+   - **Chronological Feeds (Bluesky, Mastodon, Nostr, Telegram):** Inlines link directly into the post with rich cards or HTML previews.
+   - **Algorithmic Feeds (X, Meta Threads):** Places the clean hook/excerpt in Post 1, and chains the link into Post 2 (the first self-reply) to protect organic reach in recommendation feeds.
 
-2. **Smart Word-Boundary Thread Splitting & Link Strategies**:
-   - Text is split strictly at natural word boundaries—never truncating thoughts with raw ellipses (`…`).
-   - Centralized platform configurations (`src/config/platforms.ts`) enforce platform-specific rules:
-     - **Bluesky** (300 graphemes, non-algorithmic): inlines link directly into the root post.
-     - **Mastodon** (500 characters, non-algorithmic): inlines link in post, chains multi-part threads via `in_reply_to_id`, and includes `Idempotency-Key` headers to prevent duplicate posts on retries.
-     - **X & Threads** (algorithmic feeds): planned for hook in Post 1 and link in Post 2 (first reply) to protect organic reach.
-     - **Nostr** (500 graphemes, non-algorithmic): broadcasts signed NIP-01 text notes to configured relays via WebSockets.
+2. **Built-in 3-Character Base62 URL Shortener**:
+   - Generates deterministic 3-character Base62 codes (`[0-9a-zA-Z]`, 238,328 combinations) when `SHORT_DOMAIN` is configured.
+   - Example: `https://s.yourdomain.com/waC` -> `301 Moved Permanently` to `https://yourdomain.com/articles/.../`.
+   - Edge-cached with `Cache-Control: public, max-age=86400` for near-instant redirection.
 
 3. **Clean Caching & Deduplication**:
-   - **HTTP Conditional Requests**: Stores `rss:etag` and `rss:last_modified` in KV. Sends `If-None-Match` and `If-Modified-Since` on each cron. If the feed hasn't changed, the server returns `304 Not Modified` for an instant ~5ms exit with zero CPU and no XML parsing.
-   - **High-Water Mark**: Checks the top (newest) item against `rss:latest_url` in KV. If the latest post hasn't changed, it exits immediately.
-   - **First-Run Baseline**: On the very first run, simply writes `rss:latest_url` as the baseline. It checks nothing and posts nothing.
-   - **Sequential Chronological Syndication**: When multiple posts appear in the 4-hour window, the worker posts them sequentially from oldest to newest.
-   - **Fault-Tolerant Retries**: If any platform fails, batch halts immediately to preserve order, `rss:latest_url` advances only to the last successful post, and already-posted platforms are recorded in KV so retries never duplicate posts.
+   - **HTTP Conditional Requests:** Sends `If-None-Match` (ETag) and `If-Modified-Since` on every cron. If the feed hasn't changed, the server returns `304 Not Modified` -> exits in **~5ms** with zero CPU or XML parsing.
+   - **High-Water Mark (`rss:latest_url`):** Tracks the latest seen article.
+   - **First-Run Baseline Seeding:** On fresh deployment, records the top post as baseline and posts **0 items**. You will never spam your accounts with years of archives.
+   - **Sequential Chronological Syndication:** When multiple posts appear in the 4-hour window, posts are syndicated oldest-to-newest.
+   - **Partial State & Fault Tolerance:** If one platform fails, successful platforms are recorded in KV (`post:<url>`). On retries, already-posted platforms are skipped.
 
 ---
 
 ## Configuration
 
-> [!NOTE]
-> For step-by-step instructions on obtaining API keys, app passwords, and required scopes for all platforms (Bluesky, Mastodon, X, Threads, Nostr), see the [**Platform Credentials & Setup Guide**](PLATFORMS.md).
+> [!TIP]
+> Setting up with an AI assistant? Refer to [**AGENTS.md**](AGENTS.md) for step-by-step instructions.
+> For manual credential acquisition guides, see [**PLATFORMS.md**](PLATFORMS.md).
 
-All configuration is supplied via **Environment Variables** and **Secrets** (set in Cloudflare Dashboard under **Settings → Variables and Secrets**, or via Wrangler CLI).
+All settings are configured via **Environment Variables** and **Secrets** in the Cloudflare Dashboard (**Worker Settings → Variables and Secrets**):
 
-### 1. Public Variables
+### 1. Variables (Plaintext)
 
-| Variable                | Description                                                          | Example                              |
-| :---------------------- | :------------------------------------------------------------------- | :----------------------------------- |
-| `RSS_FEED_URL`          | **(Required)** Public URL of the RSS feed                            | `https://yourdomain.com/rss.xml`     |
-| `BLUESKY_IDENTIFIER`    | Your Bluesky handle or DID                                           | `yourhandle.bsky.social`             |
-| `BLUESKY_SERVICE`       | AT Protocol PDS host (defaults to `https://bsky.social`)             | `https://bsky.social`                |
-| `MASTODON_INSTANCE_URL` | Mastodon instance host (defaults to `https://mastodon.social`)       | `https://mastodon.social`            |
-| `SHORT_DOMAIN`          | _(Optional)_ Domain for built-in shortener (e.g. `s.yourdomain.com`) | `s.yourdomain.com`                   |
-| `THREADS_USER_ID`       | _(Optional)_ Threads User ID (auto-resolved via `/me` if omitted)    | `123456789`                          |
-| `NOSTR_RELAYS`          | _(Optional)_ Comma-separated relay URLs                              | `wss://relay.damus.io,wss://nos.lol` |
-| `TELEGRAM_CHAT_ID`      | _(Optional)_ Telegram Channel or Group username / numeric ID         | `@devlog`                            |
+| Variable                | Description                                                         | Example                              |
+| :---------------------- | :------------------------------------------------------------------ | :----------------------------------- |
+| `RSS_FEED_URL`          | **(Required)** Public URL of your RSS or Atom feed                  | `https://example.com/rss.xml`        |
+| `SHORT_DOMAIN`          | _(Optional)_ Domain for built-in shortener                          | `s.example.com`                      |
+| `BLUESKY_IDENTIFIER`    | _(Optional)_ Your Bluesky handle or DID                             | `yourname.bsky.social`               |
+| `BLUESKY_SERVICE`       | _(Optional)_ AT Protocol PDS host (default: `https://bsky.social`)  | `https://bsky.social`                |
+| `MASTODON_INSTANCE_URL` | _(Optional)_ Mastodon instance (default: `https://mastodon.social`) | `https://mastodon.social`            |
+| `TELEGRAM_CHAT_ID`      | _(Optional)_ Telegram Channel/Group username or numeric ID          | `@devlog`                            |
+| `NOSTR_RELAYS`          | _(Optional)_ Comma-separated WebSocket relay URLs                   | `wss://relay.damus.io,wss://nos.lol` |
 
-### 2. Secrets (set via Cloudflare Dashboard or `wrangler secret put`)
+### 2. Secrets (Encrypted)
 
-| Secret                  | Description                                                                 |
-| :---------------------- | :-------------------------------------------------------------------------- |
-| `BLUESKY_PASSWORD`      | Bluesky App Password (generate in Bluesky Settings → App Passwords)         |
-| `MASTODON_ACCESS_TOKEN` | Mastodon User Access Token (from Preferences → Development → New App)       |
-| `X_API_KEY`             | **(OAuth 1.0a - Recommended)** X Consumer API Key (permanent)               |
-| `X_API_SECRET`          | **(OAuth 1.0a - Recommended)** X Consumer API Key Secret (permanent)        |
-| `X_ACCESS_TOKEN`        | X Access Token (OAuth 1.0a permanent, or OAuth 2.0 2-hour fallback)         |
-| `X_ACCESS_SECRET`       | **(OAuth 1.0a - Recommended)** X Access Token Secret (permanent)            |
-| `THREADS_ACCESS_TOKEN`  | Meta Threads User Access Token (with `threads_content_publish` scope)       |
-| `NOSTR_PRIVATE_KEY`     | Nostr private key (hex or `nsec1...` format)                                |
-| `TELEGRAM_BOT_TOKEN`    | Telegram Bot API Token (generated via [@BotFather](https://t.me/BotFather)) |
-| `API_SECRET`            | _(Optional)_ Bearer token required for triggering `POST /sync` manually     |
+Add via Cloudflare Dashboard or `bunx wrangler secret put <NAME>`:
+
+| Secret                  | Platform     | Description                                                                                  |
+| :---------------------- | :----------- | :------------------------------------------------------------------------------------------- |
+| `BLUESKY_PASSWORD`      | Bluesky      | App Password from [bsky.app/settings/app-passwords](https://bsky.app/settings/app-passwords) |
+| `MASTODON_ACCESS_TOKEN` | Mastodon     | User Access Token with `write:statuses` scope                                                |
+| `TELEGRAM_BOT_TOKEN`    | Telegram     | Bot API Token generated via [@BotFather](https://t.me/BotFather)                             |
+| `THREADS_ACCESS_TOKEN`  | Meta Threads | 60-day Long-Lived Token from Meta Developer Portal                                           |
+| `NOSTR_PRIVATE_KEY`     | Nostr        | Private key in `nsec1...` or 64-character hex format                                         |
+| `X_API_KEY`             | X (Twitter)  | Consumer API Key (OAuth 1.0a permanent)                                                      |
+| `X_API_SECRET`          | X (Twitter)  | Consumer API Key Secret (OAuth 1.0a permanent)                                               |
+| `X_ACCESS_TOKEN`        | X (Twitter)  | User Access Token (OAuth 1.0a permanent)                                                     |
+| `X_ACCESS_SECRET`       | X (Twitter)  | User Access Token Secret (OAuth 1.0a permanent)                                              |
+| `API_SECRET`            | Worker       | _(Optional)_ Bearer token required for manual `POST /sync`                                   |
 
 _(Any platform whose secret is omitted is simply skipped during syndication)._
 
@@ -68,69 +101,35 @@ _(Any platform whose secret is omitted is simply skipped during syndication)._
 
 ## Endpoints
 
-| Method | Path       | Description                                                              |
-| :----- | :--------- | :----------------------------------------------------------------------- |
-| `GET`  | `/`        | Health check, latest synced URL, ETag, and configuration status          |
-| `GET`  | `/:code`   | 301 Permanent Redirect to canonical URL (e.g. `s.yourdomain.com/a9X`)    |
-| `GET`  | `/s/:code` | Alternative 301 Permanent Redirect path                                  |
-| `POST` | `/sync`    | Manually run RSS sync (send `Authorization: Bearer <API_SECRET>` if set) |
-| `GET`  | `/history` | List all syndicated posts recorded in KV                                 |
+| Method | Path       | Description                                                               |
+| :----- | :--------- | :------------------------------------------------------------------------ |
+| `GET`  | `/`        | Health check, latest synced URL, ETag, and live platform status           |
+| `GET`  | `/:code`   | 301 Permanent Redirect to canonical URL (e.g. `s.yourdomain.com/waC`)     |
+| `GET`  | `/s/:code` | Alternative 301 Permanent Redirect path                                   |
+| `POST` | `/sync`    | Manually trigger sync (pass `{"force": true}` to re-evaluate latest post) |
+| `GET`  | `/history` | List all syndicated posts and their remote platform URLs stored in KV     |
 
 ---
 
-## Deployment
-
-### Option A: Cloudflare Dashboard (Deploy from Git)
-
-1. Create a KV namespace:
-   - Go to Cloudflare Dashboard → **Storage & Databases** → **KV** → **Create namespace** (e.g. name it `syndicator-kv`).
-2. Create your Worker:
-   - Go to **Workers & Pages** → **Create** → **Import from Git** → select this repository.
-3. Configure KV binding:
-   - Under Worker **Settings** → **Bindings** → **KV Namespace Bindings** → click **Add binding**:
-     - Variable name: `KV`
-     - KV namespace: select the namespace created in step 1.
-4. Configure Variables & Secrets:
-   - Under Worker **Settings** → **Variables and Secrets**:
-     - Add your `RSS_FEED_URL` and platform variables / secrets.
-5. (Optional) Custom Shortener Domain:
-   - Under Worker **Settings** → **Domains & Routes** → **Add Custom Domain** (e.g. `s.yourdomain.com`).
-
-### Option B: Deploy via Wrangler CLI
-
-```bash
-# 1. Create KV namespace
-bunx wrangler kv namespace create syndicator_kv
-
-# 2. Bind KV and set secrets
-bunx wrangler secret put BLUESKY_PASSWORD
-bunx wrangler secret put MASTODON_ACCESS_TOKEN
-bunx wrangler secret put X_API_KEY
-bunx wrangler secret put X_API_SECRET
-bunx wrangler secret put X_ACCESS_TOKEN
-bunx wrangler secret put X_ACCESS_SECRET
-bunx wrangler secret put THREADS_ACCESS_TOKEN
-bunx wrangler secret put NOSTR_PRIVATE_KEY
-
-# 3. Deploy
-bun run deploy
-```
-
----
-
-## Development & Testing
+## Local Development & Testing
 
 ```bash
 # Install dependencies
 bun install
 
-# Run test suite (43 unit tests across 8 suites)
+# Run test suite (48 passing unit tests across 9 files)
 bun test
 
-# Typecheck
+# Type check
 bun run typecheck
 
 # Code formatting & linting with Biome
 bun run check
 bun run fix
 ```
+
+---
+
+## License
+
+[MIT](LICENSE) © 2026 Evgenii Zinner
