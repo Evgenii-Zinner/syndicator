@@ -190,6 +190,39 @@ bunx wrangler secret put NOSTR_PRIVATE_KEY
 
 ---
 
+## 6. Telegram Channel / Group
+
+Telegram uses the official Telegram Bot API (`POST https://api.telegram.org/bot<TOKEN>/sendMessage`). Messages support full HTML formatting with bold titles, full excerpts, and rich link previews.
+
+### Requirements
+
+- A Telegram Bot created via [@BotFather](https://t.me/BotFather).
+- A Telegram Channel or Group where your bot has **Administrator** privileges with permission to **Post Messages**.
+
+### How to Set Up
+
+1. Open Telegram and start a chat with [@BotFather](https://t.me/BotFather).
+2. Send `/newbot` and follow prompts to choose a name and username (e.g. `my_blog_syndicator_bot`).
+3. Copy the **HTTP API Token** (e.g. `123456789:ABCdefGHIjklMNOpqrSTUvwxYZ`).
+4. In your Telegram Channel:
+   - Go to **Channel Info** → **Administrators** → **Add Admin**.
+   - Search for your newly created bot username and add it with permission to **Post Messages**.
+5. Determine your `TELEGRAM_CHAT_ID`:
+   - For public channels: `@your_channel_username` (e.g. `@devlog`).
+   - For private channels: forward a message from your channel to [@userinfobot](https://t.me/userinfobot) or [@JsonDumpBot](https://t.me/JsonDumpBot) to find the numeric ID (e.g. `-1001234567890`).
+
+### Worker Configuration
+
+```bash
+# In Cloudflare Variables:
+# TELEGRAM_CHAT_ID="@devlog"
+
+# Store the Bot Token securely in Cloudflare:
+bunx wrangler secret put TELEGRAM_BOT_TOKEN
+```
+
+---
+
 ## Testing & Verifying Secrets Locally
 
 When developing locally, store your secrets in `.dev.vars` (which is git-ignored):

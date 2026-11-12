@@ -52,6 +52,7 @@ app.get('/', async (c) => {
   );
   const threadsConfigured = Boolean(c.env.THREADS_ACCESS_TOKEN);
   const nostrConfigured = Boolean(c.env.NOSTR_PRIVATE_KEY);
+  const telegramConfigured = Boolean(c.env.TELEGRAM_BOT_TOKEN && c.env.TELEGRAM_CHAT_ID);
 
   return c.json({
     service: 'syndicator',
@@ -80,6 +81,10 @@ app.get('/', async (c) => {
         },
         nostr: {
           configured: nostrConfigured,
+        },
+        telegram: {
+          configured: telegramConfigured,
+          chatId: c.env.TELEGRAM_CHAT_ID ?? null,
         },
       },
     },

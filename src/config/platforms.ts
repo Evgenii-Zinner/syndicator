@@ -1,7 +1,7 @@
 /**
  * Supported platform identifiers.
  */
-export type PlatformId = 'bluesky' | 'x' | 'threads' | 'mastodon' | 'nostr';
+export type PlatformId = 'bluesky' | 'x' | 'threads' | 'mastodon' | 'nostr' | 'telegram';
 
 /**
  * Strategy for placing the link in social posts.
@@ -60,6 +60,14 @@ export const PLATFORMS: Record<PlatformId, PlatformConfig> = {
     id: 'nostr',
     name: 'Nostr',
     maxGraphemes: 500,
+    isAlgorithmic: false,
+    linkStrategy: 'inline',
+    replyPrefix: 'Read the full article:\n\n',
+  },
+  telegram: {
+    id: 'telegram',
+    name: 'Telegram',
+    maxGraphemes: 4096,
     isAlgorithmic: false,
     linkStrategy: 'inline',
     replyPrefix: 'Read the full article:\n\n',

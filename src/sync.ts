@@ -1,6 +1,7 @@
 import { syndicateToBluesky } from './platforms/bluesky';
 import { syndicateToMastodon } from './platforms/mastodon';
 import { syndicateToNostr } from './platforms/nostr';
+import { syndicateToTelegram } from './platforms/telegram';
 import { syndicateToThreads } from './platforms/threads';
 import { syndicateToX } from './platforms/x';
 import type {
@@ -263,18 +264,29 @@ export async function syncRssFeed(
           }
         : await syndicateToNostr(payload, env);
 
+      // Syndicate to Telegram (if not already posted)
+      const telegramResult: PlatformResult = existingRecord?.telegram
+        ? {
+            status: 'posted',
+            remoteId: String(existingRecord.telegram.messageId),
+            url: existingRecord.telegram.url,
+          }
+        : await syndicateToTelegram(payload, env);
+
       const hasFailures =
         bskyResult.status === 'failed' ||
         mastodonResult.status === 'failed' ||
         xResult.status === 'failed' ||
         threadsResult.status === 'failed' ||
-        nostrResult.status === 'failed';
+        nostrResult.status === 'failed' ||
+        telegramResult.status === 'failed';
       const hasPosts =
         bskyResult.status === 'posted' ||
         mastodonResult.status === 'posted' ||
         xResult.status === 'posted' ||
         threadsResult.status === 'posted' ||
-        nostrResult.status === 'posted';
+        nostrResult.status === 'posted' ||
+        telegramResult.status === 'posted';
 
       // Record any successful platforms in KV so retries do not duplicate them
       if (hasPosts) {
@@ -310,6 +322,16 @@ export async function syncRssFeed(
             : existingRecord?.nostr
               ? { nostr: existingRecord.nostr }
               : {}),
+          ...(telegramResult.status === 'posted'
+            ? {
+                telegram: {
+                  messageId: Number.parseInt(telegramResult.remoteId, 10),
+                  url: telegramResult.url,
+                },
+              }
+            : existingRecord?.telegram
+              ? { telegram: existingRecord.telegram }
+              : {}),
         };
 
         await env.KV.put(kvKey, JSON.stringify(kvRecord));
@@ -323,6 +345,7 @@ export async function syncRssFeed(
           xResult.status === 'failed' ? `X: ${xResult.error}` : null,
           threadsResult.status === 'failed' ? `Threads: ${threadsResult.error}` : null,
           nostrResult.status === 'failed' ? `Nostr: ${nostrResult.error}` : null,
+          telegramResult.status === 'failed' ? `Telegram: ${telegramResult.error}` : null,
         ]
           .filter(Boolean)
           .join('; ');
@@ -338,6 +361,7 @@ export async function syncRssFeed(
           xUrl: xResult.status === 'posted' ? xResult.url : undefined,
           threadsUrl: threadsResult.status === 'posted' ? threadsResult.url : undefined,
           nostrUrl: nostrResult.status === 'posted' ? nostrResult.url : undefined,
+          telegramUrl: telegramResult.status === 'posted' ? telegramResult.url : undefined,
         });
         // Stop batch on failure to prevent publishing subsequent posts out of chronological order
         break;
@@ -356,6 +380,7 @@ export async function syncRssFeed(
           xUrl: xResult.status === 'posted' ? xResult.url : undefined,
           threadsUrl: threadsResult.status === 'posted' ? threadsResult.url : undefined,
           nostrUrl: nostrResult.status === 'posted' ? nostrResult.url : undefined,
+          telegramUrl: telegramResult.status === 'posted' ? telegramResult.url : undefined,
         });
       } else {
         skippedCount++;
@@ -371,6 +396,7 @@ export async function syncRssFeed(
             xResult.status === 'skipped' ? `X: ${xResult.reason}` : null,
             threadsResult.status === 'skipped' ? `Threads: ${threadsResult.reason}` : null,
             nostrResult.status === 'skipped' ? `Nostr: ${nostrResult.reason}` : null,
+            telegramResult.status === 'skipped' ? `Telegram: ${telegramResult.reason}` : null,
           ]
             .filter(Boolean)
             .join('; '),

@@ -183,6 +183,22 @@ describe('RSS Sync Engine', () => {
         });
       }
 
+      if (url.includes('/sendMessage')) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            result: {
+              message_id: 88,
+              chat: {
+                id: -100123456789,
+                username: 'devlog',
+              },
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
       return originalFetch(input, init);
     }) as unknown as typeof fetch;
 
@@ -448,7 +464,7 @@ describe('RSS Sync Engine', () => {
 
     try {
       const sampleNsec = nip19.nsecEncode(generateSecretKey());
-      const quintEnv: Bindings = {
+      const sextEnv: Bindings = {
         ...mockEnv,
         MASTODON_INSTANCE_URL: 'https://mastodon.social',
         MASTODON_ACCESS_TOKEN: 'mock-masto-token',
@@ -457,16 +473,18 @@ describe('RSS Sync Engine', () => {
         THREADS_USER_ID: 'mock-threads-user-123',
         NOSTR_PRIVATE_KEY: sampleNsec,
         NOSTR_RELAYS: 'wss://mock.relay.one',
+        TELEGRAM_BOT_TOKEN: 'mock-telegram-token',
+        TELEGRAM_CHAT_ID: '@devlog',
       };
 
       // Baseline run
-      await syncRssFeed(quintEnv);
+      await syncRssFeed(sextEnv);
 
       // 1 new post
       currentXml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
-    <title>Evgenii Zinner</title>
+    <title>Example Tech Blog</title>
     <link>https://example.com</link>
     <item>
       <title>Article 2</title>
@@ -483,7 +501,7 @@ describe('RSS Sync Engine', () => {
   </channel>
 </rss>`;
 
-      const summary = await syncRssFeed(quintEnv);
+      const summary = await syncRssFeed(sextEnv);
       expect(summary.postedCount).toBe(1);
 
       const kvItemRaw = await mockKv.get('post:https://example.com/articles/article-2');
@@ -495,6 +513,7 @@ describe('RSS Sync Engine', () => {
       expect(kvItem.x?.url).toBe('https://x.com/i/status/x-tweet-1');
       expect(kvItem.threads?.url).toBe('https://www.threads.net/t/threads-post-1');
       expect(kvItem.nostr?.url).toContain('https://njump.me/note1');
+      expect(kvItem.telegram?.url).toBe('https://t.me/devlog/88');
     } finally {
       globalThis.WebSocket = originalWebSocket;
     }

@@ -1,6 +1,6 @@
 # Syndicator
 
-A lightweight, open-source Cloudflare Worker that polls an RSS feed on a schedule (`0 */4 * * *`), deduplicates posts using **Cloudflare KV**, generates ultra-short 3-character links (`s.yourdomain.com/:code`), and cross-posts new articles to **Bluesky**, **Mastodon**, **X (Twitter)**, **Meta Threads**, and **Nostr** with intelligent word-boundary thread splitting.
+A lightweight, open-source Cloudflare Worker that polls an RSS feed on a schedule (`0 */4 * * *`), deduplicates posts using **Cloudflare KV**, generates ultra-short 3-character links (`s.yourdomain.com/:code`), and cross-posts new articles to **Bluesky**, **Mastodon**, **X (Twitter)**, **Meta Threads**, **Nostr**, and **Telegram** with intelligent word-boundary thread splitting.
 
 ## Key Features
 
@@ -45,20 +45,22 @@ All configuration is supplied via **Environment Variables** and **Secrets** (set
 | `SHORT_DOMAIN`          | _(Optional)_ Domain for built-in shortener (e.g. `s.yourdomain.com`) | `s.yourdomain.com`                   |
 | `THREADS_USER_ID`       | _(Optional)_ Threads User ID (auto-resolved via `/me` if omitted)    | `123456789`                          |
 | `NOSTR_RELAYS`          | _(Optional)_ Comma-separated relay URLs                              | `wss://relay.damus.io,wss://nos.lol` |
+| `TELEGRAM_CHAT_ID`      | _(Optional)_ Telegram Channel or Group username / numeric ID         | `@devlog`                            |
 
 ### 2. Secrets (set via Cloudflare Dashboard or `wrangler secret put`)
 
-| Secret                  | Description                                                             |
-| :---------------------- | :---------------------------------------------------------------------- |
-| `BLUESKY_PASSWORD`      | Bluesky App Password (generate in Bluesky Settings → App Passwords)     |
-| `MASTODON_ACCESS_TOKEN` | Mastodon User Access Token (from Preferences → Development → New App)   |
-| `X_API_KEY`             | **(OAuth 1.0a - Recommended)** X Consumer API Key (permanent)           |
-| `X_API_SECRET`          | **(OAuth 1.0a - Recommended)** X Consumer API Key Secret (permanent)    |
-| `X_ACCESS_TOKEN`        | X Access Token (OAuth 1.0a permanent, or OAuth 2.0 2-hour fallback)     |
-| `X_ACCESS_SECRET`       | **(OAuth 1.0a - Recommended)** X Access Token Secret (permanent)        |
-| `THREADS_ACCESS_TOKEN`  | Meta Threads User Access Token (with `threads_content_publish` scope)   |
-| `NOSTR_PRIVATE_KEY`     | Nostr private key (hex or `nsec1...` format)                            |
-| `API_SECRET`            | _(Optional)_ Bearer token required for triggering `POST /sync` manually |
+| Secret                  | Description                                                                 |
+| :---------------------- | :-------------------------------------------------------------------------- |
+| `BLUESKY_PASSWORD`      | Bluesky App Password (generate in Bluesky Settings → App Passwords)         |
+| `MASTODON_ACCESS_TOKEN` | Mastodon User Access Token (from Preferences → Development → New App)       |
+| `X_API_KEY`             | **(OAuth 1.0a - Recommended)** X Consumer API Key (permanent)               |
+| `X_API_SECRET`          | **(OAuth 1.0a - Recommended)** X Consumer API Key Secret (permanent)        |
+| `X_ACCESS_TOKEN`        | X Access Token (OAuth 1.0a permanent, or OAuth 2.0 2-hour fallback)         |
+| `X_ACCESS_SECRET`       | **(OAuth 1.0a - Recommended)** X Access Token Secret (permanent)            |
+| `THREADS_ACCESS_TOKEN`  | Meta Threads User Access Token (with `threads_content_publish` scope)       |
+| `NOSTR_PRIVATE_KEY`     | Nostr private key (hex or `nsec1...` format)                                |
+| `TELEGRAM_BOT_TOKEN`    | Telegram Bot API Token (generated via [@BotFather](https://t.me/BotFather)) |
+| `API_SECRET`            | _(Optional)_ Bearer token required for triggering `POST /sync` manually     |
 
 _(Any platform whose secret is omitted is simply skipped during syndication)._
 

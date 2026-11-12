@@ -33,7 +33,7 @@ declare global {
 /**
  * Supported syndication target platforms.
  */
-export type Platform = 'bluesky' | 'x' | 'threads' | 'mastodon' | 'nostr';
+export type Platform = 'bluesky' | 'x' | 'threads' | 'mastodon' | 'nostr' | 'telegram';
 
 /**
  * Cloudflare Worker environment bindings, variables, and secrets.
@@ -51,6 +51,7 @@ export interface Bindings {
   readonly MASTODON_INSTANCE_URL?: string;
   readonly THREADS_USER_ID?: string;
   readonly NOSTR_RELAYS?: string;
+  readonly TELEGRAM_CHAT_ID?: string;
 
   // Secrets (Configured via `wrangler secret put` or Cloudflare Dashboard)
   readonly BLUESKY_PASSWORD?: string;
@@ -62,6 +63,7 @@ export interface Bindings {
   readonly X_ACCESS_SECRET?: string;
   readonly THREADS_ACCESS_TOKEN?: string;
   readonly NOSTR_PRIVATE_KEY?: string;
+  readonly TELEGRAM_BOT_TOKEN?: string;
   readonly API_SECRET?: string;
 }
 
@@ -120,6 +122,10 @@ export interface KvSyndicatedItem {
     readonly id: string;
     readonly url?: string;
   };
+  readonly telegram?: {
+    readonly messageId: number;
+    readonly url?: string;
+  };
   readonly status?: string;
 }
 
@@ -138,6 +144,7 @@ export interface SyncItemResult {
   readonly xUrl?: string;
   readonly threadsUrl?: string;
   readonly nostrUrl?: string;
+  readonly telegramUrl?: string;
 }
 
 /**
