@@ -92,7 +92,12 @@ export type PlatformResult =
       readonly remoteId?: string;
       readonly url?: string;
     }
-  | { readonly status: 'failed'; readonly error: string };
+  | {
+      readonly status: 'failed';
+      readonly error: string;
+      readonly partialRemoteId?: string;
+      readonly partialUrl?: string;
+    };
 
 /**
  * Record stored in Cloudflare KV for each syndicated post.
@@ -120,6 +125,7 @@ export interface KvSyndicatedItem {
   readonly threads?: {
     readonly id: string;
     readonly url: string;
+    readonly partial?: boolean;
   };
   readonly nostr?: {
     readonly id: string;

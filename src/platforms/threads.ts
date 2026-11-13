@@ -16,6 +16,55 @@ interface ThreadsPublishResponse {
   readonly id?: string | number;
 }
 
+export interface ThreadsSyndicateOptions {
+  readonly replyDelayMs?: number;
+  readonly retryDelayMs?: number;
+  readonly maxRetries?: number;
+  readonly existingRootId?: string;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function postThreadsFormWithRetry(params: {
+  readonly url: string;
+  readonly body: URLSearchParams;
+  readonly actionLabel: string;
+  readonly maxRetries: number;
+  readonly retryDelayMs: number;
+}): Promise<
+  { readonly ok: true; readonly data: unknown } | { readonly ok: false; readonly error: string }
+> {
+  const { url, body, actionLabel, maxRetries, retryDelayMs } = params;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+
+    if (res.ok) {
+      return { ok: true, data: await res.json() };
+    }
+
+    const errorText = await res.text();
+    const errorMessage = `${actionLabel} (${res.status}): ${errorText}`;
+
+    // Never retry authentication or permission errors
+    if (res.status === 401 || res.status === 403 || attempt >= maxRetries) {
+      return { ok: false, error: errorMessage };
+    }
+
+    if (retryDelayMs > 0) {
+      await sleep(retryDelayMs * attempt);
+    }
+  }
+
+  return { ok: false, error: `${actionLabel}: Exhausted retries.` };
+}
+
 /**
  * Resolves the authenticated user ID from the Meta Graph API `/me` endpoint if not explicitly provided in environment bindings.
  */
@@ -46,15 +95,19 @@ async function resolveThreadsUserId(token: string): Promise<string> {
  *   Post 2 contains the destination link chained via `reply_to_id`.
  * - Multi-step publishing process required by Meta:
  *   1. `POST /{user_id}/threads` to create a TEXT container.
- *   2. `POST /{user_id}/threads_publish` to publish the created container.
+ *   2. Wait briefly and `POST /{user_id}/threads_publish` (with retry backoff) to publish the container.
+ * - Preserves `partialRemoteId` if a reply fails after the root post succeeded, allowing future
+ *   retries via `existingRootId` to append only the missing reply without duplicating Post 1.
  *
  * @param data - The syndication payload containing canonical URL, short URL, title, and excerpt.
  * @param env - Cloudflare Worker environment bindings including `THREADS_ACCESS_TOKEN` and optional `THREADS_USER_ID`.
+ * @param options - Optional timing, retry, and partial-thread resume configuration.
  * @returns PlatformResult indicating posted, skipped, or failed.
  */
 export async function syndicateToThreads(
   data: SyndicatePayload,
-  env: Bindings
+  env: Bindings,
+  options?: ThreadsSyndicateOptions
 ): Promise<PlatformResult> {
   const token = env.THREADS_ACCESS_TOKEN;
 
@@ -77,6 +130,11 @@ export async function syndicateToThreads(
     }
   }
 
+  const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
+  const replyDelayMs = options?.replyDelayMs ?? (isTestEnv ? 0 : 2000);
+  const retryDelayMs = options?.retryDelayMs ?? (isTestEnv ? 0 : 2500);
+  const maxRetries = options?.maxRetries ?? 3;
+
   // 1. Plan thread using Threads 500-char algorithmic reply strategy
   const targetLink = data.shortUrl || data.canonicalUrl;
   const content = (data.excerpt?.trim() || data.title).trim();
@@ -86,11 +144,31 @@ export async function syndicateToThreads(
     platform: PLATFORMS.threads,
   });
 
-  let rootThreadId: string | undefined;
-  let previousPostId: string | undefined;
+  const existingRootId = options?.existingRootId;
+  let rootThreadId: string | undefined = existingRootId;
+  let previousPostId: string | undefined = existingRootId;
+  const startIndex = existingRootId ? 1 : 0;
 
-  for (let i = 0; i < threadPlan.posts.length; i++) {
+  const failWithOptionalPartial = (error: string): PlatformResult =>
+    rootThreadId
+      ? {
+          status: 'failed',
+          error,
+          partialRemoteId: rootThreadId,
+          partialUrl: `https://www.threads.net/t/${rootThreadId}`,
+        }
+      : {
+          status: 'failed',
+          error,
+        };
+
+  for (let i = startIndex; i < threadPlan.posts.length; i++) {
     const postText = threadPlan.posts[i] ?? '';
+
+    // Allow Meta's backend to index the newly published parent post before chaining reply_to_id
+    if (i > 0 && !(existingRootId && i === 1) && replyDelayMs > 0) {
+      await sleep(replyDelayMs);
+    }
 
     // Step 1: Create media container
     const containerParams: Record<string, string> = {
@@ -100,65 +178,51 @@ export async function syndicateToThreads(
       ...(previousPostId ? { reply_to_id: previousPostId } : {}),
     };
 
-    const containerForm = new URLSearchParams(containerParams);
-    const containerRes = await fetch(
-      `https://graph.threads.net/v1.0/${encodeURIComponent(userId)}/threads`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: containerForm,
-      }
-    );
+    const containerAttempt = await postThreadsFormWithRetry({
+      url: `https://graph.threads.net/v1.0/${encodeURIComponent(userId)}/threads`,
+      body: new URLSearchParams(containerParams),
+      actionLabel: 'Threads container creation failed',
+      maxRetries,
+      retryDelayMs,
+    });
 
-    if (!containerRes.ok) {
-      const errorText = await containerRes.text();
-      return {
-        status: 'failed',
-        error: `Threads container creation failed (${containerRes.status}): ${errorText}`,
-      };
+    if (!containerAttempt.ok) {
+      return failWithOptionalPartial(containerAttempt.error);
     }
 
-    const containerData = (await containerRes.json()) as ThreadsContainerResponse;
+    const containerData = containerAttempt.data as ThreadsContainerResponse;
     const containerId = containerData?.id;
 
     if (!containerId) {
-      return {
-        status: 'failed',
-        error: 'Threads container creation returned no container ID.',
-      };
+      return failWithOptionalPartial('Threads container creation returned no container ID.');
+    }
+
+    // Give Meta time to finish processing container & URL preview before publishing
+    if (replyDelayMs > 0) {
+      await sleep(replyDelayMs);
     }
 
     // Step 2: Publish container
-    const pubForm = new URLSearchParams({
-      creation_id: containerId,
-      access_token: token,
+    const pubAttempt = await postThreadsFormWithRetry({
+      url: `https://graph.threads.net/v1.0/${encodeURIComponent(userId)}/threads_publish`,
+      body: new URLSearchParams({
+        creation_id: containerId,
+        access_token: token,
+      }),
+      actionLabel: 'Threads publish failed',
+      maxRetries,
+      retryDelayMs,
     });
 
-    const pubRes = await fetch(
-      `https://graph.threads.net/v1.0/${encodeURIComponent(userId)}/threads_publish`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: pubForm,
-      }
-    );
-
-    if (!pubRes.ok) {
-      const errorText = await pubRes.text();
-      return {
-        status: 'failed',
-        error: `Threads publish failed (${pubRes.status}): ${errorText}`,
-      };
+    if (!pubAttempt.ok) {
+      return failWithOptionalPartial(pubAttempt.error);
     }
 
-    const pubData = (await pubRes.json()) as ThreadsPublishResponse;
+    const pubData = pubAttempt.data as ThreadsPublishResponse;
     const publishedId = pubData?.id ? String(pubData.id) : '';
 
     if (!publishedId) {
-      return {
-        status: 'failed',
-        error: 'Threads publish returned no post ID.',
-      };
+      return failWithOptionalPartial('Threads publish returned no post ID.');
     }
 
     if (i === 0) {

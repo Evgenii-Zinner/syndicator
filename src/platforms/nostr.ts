@@ -11,9 +11,11 @@ export const DEFAULT_NOSTR_RELAYS: readonly string[] = [
   'wss://relay.nostr.com',
   'wss://relay.damus.io',
   'wss://nos.lol',
+  'wss://relay.primal.net',
   'wss://nostr.bitcoiner.social',
   'wss://nostr.mom',
   'wss://relay.snort.social',
+  'wss://offchain.pub',
 ];
 
 /**
@@ -72,7 +74,10 @@ async function connectToRelay(relayUrl: string, timeoutMs: number): Promise<WebS
   // 1. Cloudflare Workers outbound WebSocket upgrade via fetch
   try {
     const res = await fetch(wsUrl, {
-      headers: { Upgrade: 'websocket' },
+      headers: {
+        Upgrade: 'websocket',
+        'User-Agent': 'Syndicator-Bot/1.0 (+https://github.com/Evgenii-Zinner/syndicator)',
+      },
     });
     const ws = (res as unknown as { webSocket?: WebSocket }).webSocket;
     if (ws) {

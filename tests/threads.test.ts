@@ -177,4 +177,131 @@ describe('Meta Threads Platform Syndication', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it('retries transient 400 container-not-ready errors when publishing reply', async () => {
+    let publishAttempts = 0;
+    let counter = 200;
+    const originalFetch = globalThis.fetch;
+
+    globalThis.fetch = (async (input: RequestInfo | URL): Promise<Response> => {
+      const url = typeof input === 'string' ? input : input.toString();
+      counter++;
+
+      if (url.includes('/threads_publish')) {
+        publishAttempts++;
+        // Fail the reply's first publish attempt (3rd publish call overall? No: 1st = root, 2nd = reply fail, 3rd = reply succeed)
+        if (publishAttempts === 2) {
+          return new Response(
+            JSON.stringify({ error: { message: 'Media container is not ready for publishing' } }),
+            { status: 400, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(JSON.stringify({ id: `pub-${counter}` }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (url.includes('/threads')) {
+        return new Response(JSON.stringify({ id: `container-${counter}` }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      return originalFetch(input);
+    }) as unknown as typeof fetch;
+
+    try {
+      const result = await syndicateToThreads(payload, dummyEnv, {
+        replyDelayMs: 0,
+        retryDelayMs: 0,
+        maxRetries: 3,
+      });
+
+      expect(result.status).toBe('posted');
+      expect(publishAttempts).toBe(3);
+      if (result.status === 'posted') {
+        expect(result.remoteId).toBe('pub-202');
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('preserves partialRemoteId when reply fails and resumes only reply with existingRootId', async () => {
+    const calls: { url: string; body: string }[] = [];
+    let failReplies = true;
+    let counter = 300;
+    const originalFetch = globalThis.fetch;
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === 'string' ? input : input.toString();
+      const body = (init?.body as string) ?? '';
+      calls.push({ url, body });
+      counter++;
+
+      if (url.includes('/threads_publish')) {
+        return new Response(JSON.stringify({ id: `pub-${counter}` }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (url.includes('/threads')) {
+        const params = new URLSearchParams(body);
+        if (failReplies && params.get('reply_to_id')) {
+          return new Response(JSON.stringify({ error: { message: 'Parent post not ready' } }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({ id: `container-${counter}` }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      return originalFetch(input, init);
+    }) as unknown as typeof fetch;
+
+    try {
+      // 1. First run: Post 1 succeeds ('pub-302'), Post 2 fails across retries
+      const failedResult = await syndicateToThreads(payload, dummyEnv, {
+        replyDelayMs: 0,
+        retryDelayMs: 0,
+        maxRetries: 2,
+      });
+
+      expect(failedResult.status).toBe('failed');
+      if (failedResult.status === 'failed') {
+        expect(failedResult.partialRemoteId).toBe('pub-302');
+        expect(failedResult.partialUrl).toBe('https://www.threads.net/t/pub-302');
+      }
+
+      // 2. Resume run using existingRootId: only Post 2 should be created & published
+      calls.length = 0;
+      failReplies = false;
+
+      const resumedResult = await syndicateToThreads(payload, dummyEnv, {
+        replyDelayMs: 0,
+        retryDelayMs: 0,
+        existingRootId: 'pub-302',
+      });
+
+      expect(resumedResult.status).toBe('posted');
+      if (resumedResult.status === 'posted') {
+        expect(resumedResult.remoteId).toBe('pub-302');
+        expect(resumedResult.url).toBe('https://www.threads.net/t/pub-302');
+      }
+
+      // Only 2 calls on resume: reply container + reply publish
+      expect(calls.length).toBe(2);
+      const replyParams = new URLSearchParams(calls[0]?.body);
+      expect(replyParams.get('reply_to_id')).toBe('pub-302');
+      expect(replyParams.get('text')).toBe('Read the full article:\n\nhttps://s.example.com/v8x');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

@@ -182,7 +182,9 @@ export async function syncRssFeed(
     const bskyDone = Boolean(existingRecord?.bluesky || !env.BLUESKY_PASSWORD);
     const mastodonDone = Boolean(existingRecord?.mastodon || !env.MASTODON_ACCESS_TOKEN);
     const xDone = Boolean(existingRecord?.x || (!env.X_ACCESS_TOKEN && !env.X_API_KEY));
-    const threadsDone = Boolean(existingRecord?.threads || !env.THREADS_ACCESS_TOKEN);
+    const threadsDone = Boolean(
+      (existingRecord?.threads && !existingRecord.threads.partial) || !env.THREADS_ACCESS_TOKEN
+    );
     const nostrDone = Boolean(existingRecord?.nostr || !env.NOSTR_PRIVATE_KEY);
     const telegramDone = Boolean(existingRecord?.telegram || !env.TELEGRAM_BOT_TOKEN);
     const devtoDone = Boolean(existingRecord?.devto || !env.DEVTO_API_KEY);
@@ -257,14 +259,19 @@ export async function syncRssFeed(
           }
         : await syndicateToX(payload, env);
 
-      // Syndicate to Threads (if not already posted)
-      const threadsResult: PlatformResult = existingRecord?.threads
-        ? {
-            status: 'posted',
-            remoteId: existingRecord.threads.id,
-            url: existingRecord.threads.url,
-          }
-        : await syndicateToThreads(payload, env);
+      // Syndicate to Threads (if not already fully posted; resume reply if root was partial)
+      const threadsResult: PlatformResult =
+        existingRecord?.threads && !existingRecord.threads.partial
+          ? {
+              status: 'posted',
+              remoteId: existingRecord.threads.id,
+              url: existingRecord.threads.url,
+            }
+          : await syndicateToThreads(payload, env, {
+              existingRootId: existingRecord?.threads?.partial
+                ? existingRecord.threads.id
+                : undefined,
+            });
 
       // Syndicate to Nostr (if not already posted)
       const nostrResult: PlatformResult = existingRecord?.nostr
@@ -310,8 +317,11 @@ export async function syncRssFeed(
         telegramResult.status === 'posted' ||
         devtoResult.status === 'posted';
 
-      // Record any successful platforms in KV so retries do not duplicate them
-      if (hasPosts) {
+      const hasPartialPosts =
+        threadsResult.status === 'failed' && Boolean(threadsResult.partialRemoteId);
+
+      // Record any successful or partial platforms in KV so retries do not duplicate them
+      if (hasPosts || hasPartialPosts) {
         const kvRecord: KvSyndicatedItem = {
           link: item.link,
           shortCode,
@@ -336,9 +346,19 @@ export async function syncRssFeed(
               : {}),
           ...(threadsResult.status === 'posted'
             ? { threads: { id: threadsResult.remoteId, url: threadsResult.url } }
-            : existingRecord?.threads
-              ? { threads: existingRecord.threads }
-              : {}),
+            : threadsResult.status === 'failed' && threadsResult.partialRemoteId
+              ? {
+                  threads: {
+                    id: threadsResult.partialRemoteId,
+                    url:
+                      threadsResult.partialUrl ??
+                      `https://www.threads.net/t/${threadsResult.partialRemoteId}`,
+                    partial: true,
+                  },
+                }
+              : existingRecord?.threads
+                ? { threads: existingRecord.threads }
+                : {}),
           ...(nostrResult.status === 'posted'
             ? { nostr: { id: nostrResult.remoteId, url: nostrResult.url } }
             : existingRecord?.nostr
